@@ -4,9 +4,7 @@
     "HG38": "/project/mchaisso_100/cmb-16/walfred/database/hg38_full.fa",
     "CHM13": "/project/mchaisso_100/cmb-16/walfred/database/GCF_009914755.1_T2T-CHM13v2.0_genomic.fa",
     "QueryPath": "../query_pathes.txt",
-    "hprcfitler": "../hprc_error.bed",
     "ScriptFolder": "../scripts/",
-    "Genelist": "wkgenes.list_fix",
-    "TempFolder": "snaketemps/",
+    "Genelist": "wkgenes.list",
     "SaveFolder": "newGeneCopies/"
 }
