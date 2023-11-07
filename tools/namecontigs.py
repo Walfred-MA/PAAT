@@ -17,7 +17,7 @@ def main(args):
 				continue
 			
 			line = line.split()
-			line[0] = ">"+ args.name.replace("_", "#") +"#"+ line[0][1:]
+			line[0] = ">"+ args.name.replace("_h", "#") +"#"+ line[0][1:]
 			line = "\t".join(line) + "\n"
 			write.write(line)
 	
