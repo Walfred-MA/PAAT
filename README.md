@@ -1,2 +1,2 @@
-# Pangenome Allele Annotation Toolkits (PAATs)
+# Pangenome Allele Annotation Toolkits (PATs)
 The toolkits and pipeline for Pangenome Allele annotation
