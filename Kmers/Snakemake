@@ -160,20 +160,22 @@ rule assemkmers:
 	input:  
 		genegroup = "{group}"
 	output: 
-		genegroupscheckers = protected("{group}_checker")
+		genegroupscheckers = "{group}_checker"
 	params: 
 		qpath = QueryPath,
 		script = ScriptFolder,
 		hg38 = HG38,
-	threads: 62
+	threads: 32
 	resources:
-		mem_mb=120000,
-		slurm_extra="--mem=120G  --cpus-per-task=62 "
+		mem_mb=62000,
+		slurm_extra="--mem=62G  --cpus-per-task=32 "
 	run:
+		import time
+		time.sleep(1+int(input.genegroup.split("_")[-1]))
 		gene = ""
 		if os.path.isfile(output.genegroupscheckers) == 0:
 			shell("{params.script}/kmer_convertor  -I ./mega_assem -T {input.genegroup}_targets -O {input.genegroup}_outputs -P ./mega_pref -n {threads}")
-			
+			pass
 		shell (" touch {output.genegroupscheckers} || true ")
 		
 rule filterkmer:
@@ -188,19 +190,21 @@ rule filterkmer:
 		hg38 = HG38,
 		hprcerror = hprcfitler,
 	resources:
-		mem_mb=30000,
-		slurm_extra="--mem=30G -c 10 "
+		mem_mb=60000,
+		slurm_extra="--mem=60G -c 30 "
 	threads: 10
 	run:
 		gene=wildcards.prefix
 		halfthreads=threads//2
 		
+		#shell("python {params.script}/KmerRegion.py -i {gene}_samples.fa -o {gene}_samples.fa_KmerRegion.fa")
 		shell ("python {params.script}/split_tosamples.py -i {gene}_samples.fa -o {gene}_genekmer/")
 		shell ("ls {gene}_genekmer/*.fa | xargs -P {threads} -I [] bash -c ' {params.script}/kmer_convertor -i [] -o [].fa_kmer.txt ' ")
 		shell("python {params.script}/selectkmer.py -g {gene}_genekmer/ -a {gene}_assemblykmer/ -o {gene}_kmerlist/ -n {halfthreads}")
 		shell("rm  {gene}_genekmer/* || true ")
 		shell (" rm  {gene}_assemblykmer/* || true " )
 		
+		#shell ("python {params.script}/kmerlist_merge.py  -i {gene}_kmerlist/ -n {threads} -o {gene}_allkmers.txt " )
 		shell ("{params.script}/kmer_convertor -i {gene}_kmerlist/ -n {threads} -o {gene}_allkmers.txt -s 3")
 		shell (" rm  {gene}_kmerlist/* || true " )
 		
@@ -210,9 +214,9 @@ rule filterfasta:
 		samplefasta = ancient("{prefix}_samples.fa"),
 	output:
 		#fasta_filter = protected("{prefix}_samples.fa_kmervali.fa"),
-		fasta_final = protected("{prefix}_samples.fa_kmervali.fa_final.fa"),
-		kmerlist_gcfiltered = protected("{prefix}_allkmers.txt_gcfiltered.list"),
-		kmerlist_final = protected("{prefix}_kmer_final.list"),
+		fasta_final = "{prefix}_samples.fa_kmervali.fa_final.fa",
+		kmerlist_gcfiltered = "{prefix}_allkmers.txt_gcfiltered.list",
+		kmerlist_final = "{prefix}_kmer_final.list",
 	params:
 		qpath = QueryPath,
 		script = ScriptFolder,
@@ -225,7 +229,7 @@ rule filterfasta:
 	run:
 		shell ("python {params.script}/GCfiltration.py -i {input.kmerlist} -r {input.samplefasta}  -o {output.kmerlist_gcfiltered}")
 		shell ("python {params.script}/querytrim_bykmer.py -i {input.samplefasta} -k {output.kmerlist_gcfiltered}  -o {output.fasta_final} -l {output.kmerlist_final} > {output.fasta_final}_kmerinfo.txt")
-		
+		#shell ("python {params.script}/filtershortcontigs.py -i {output.fasta_filter} -o {output.fasta_final} -e {params.hprcerror} -q {params.QueryPath}")
 		
 		
 		
@@ -241,7 +245,7 @@ rule partition:
 		hg38 = HG38,
 		slurm = slurm,
 	output:
-		partitions = protected("{prefix}_partitionchecker")
+		partitions = "{prefix}_partitionchecker"
 	resources:
 		mem_mb=100,
 		slurm_extra="--mem=100m -c 1 ",
@@ -250,7 +254,7 @@ rule partition:
 		
 		shell (" find {wildcards.prefix}_partitions/  -type f -delete || true")
 		
-		shell (" size=$(cat {input.fasta_final} | grep \">\" | wc -l); size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; sbatch --wait  {params.slurm}  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {input.fasta_final} {input.kmerlist_final} {wildcards.prefix}_partitions/{gene}_group ")
+		shell (" size=$(cat {input.fasta_final} | grep \">\" | wc -l); size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; sbatch --wait  {params.slurm}  --mem=\"$size\"G  --ntasks=1 --partition=qcb  --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {input.fasta_final} {input.kmerlist_final} {wildcards.prefix}_partitions/{gene}_group ")
 		
 		allfiles = [ "{}_partitions/".format(wildcards.prefix)+ file for file in os.listdir( "{}_partitions/".format(wildcards.prefix) ) if file[-3:] == ".fa"]
 		
@@ -264,7 +268,7 @@ rule partition:
 			
 			if checksize > 7000:
 				
-				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm}  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group0{i}0  \" -s 0.2 -c 1000 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
+				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm} --partition=qcb --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group0{i}0  \" -s 0.2 -c 1000 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
 				
 				
 		allfiles = [ "{}_partitions/".format(wildcards.prefix)+ file for file in os.listdir( "{}_partitions/".format(wildcards.prefix) ) if file[-3:] == ".fa"]
@@ -279,10 +283,10 @@ rule partition:
 			
 			if checksize > 10000 :
 				
-				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm}  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 1500 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
+				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm} --partition=qcb  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 1500 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
 				
 			elif checksize > 7000:
-				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm}  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 1000 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
+				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm} --partition=qcb  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 1000 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
 				
 				
 		allfiles = [ "{}_partitions/".format(wildcards.prefix)+ file for file in os.listdir( "{}_partitions/".format(wildcards.prefix) ) if file[-3:] == ".fa"]
@@ -295,10 +299,13 @@ rule partition:
 			checksize = int(subprocess.check_output("cat {} | grep \"^>\" | wc -l".format(file), shell=True).decode())
 			
 			if checksize > 10000 :
-				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm}  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 2000 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
+				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm} --partition=qcb --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 2000 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
 				
 			elif checksize > 7000:
-				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm}  --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 1500 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
+				shell (" size=$(cat {file} | grep \"^>\" | wc -l); if [ $size -gt 6000 ]; then size=$(( size * size / 10000000  )); size=$(( size > 10 ? size : 10 )); size=$(( size > 200 ? 200 : size  )) ; ( sbatch --wait  {params.slurm} --partition=qcb --mem=\"$size\"G  --ntasks=1 --cpus-per-task=1  {params.script}/runpartition_bykmer.sh {params.script}/partition_bykmer.py {file} {file}_kmer.list {wildcards.prefix}_partitions/{gene}_group00{index}0  \" -s 0.3 -c 1500 \" ) && ( rm {file} || true ) && ( rm {file}_kmer.list || true )  ; fi ")
+				
+				
+				
 				
 		shell ("touch {output.partitions} || true")
 		
@@ -312,7 +319,7 @@ rule namepartition:
 		hg38 = HG38,
 		slurm = slurm,
 	output:
-		namepartition = protected("{prefix}_partitioninfo.txt")
+		namepartition = "{prefix}_partitioninfo.txt"
 	resources:
 		mem_mb=5000,
 		slurm_extra="--mem=5G -c 1 ",
