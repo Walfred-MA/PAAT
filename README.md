@@ -5,7 +5,7 @@ AlleleSearch: A pipeline to search and extract pangenome alleles.
 
 Filtration: A pipeline to partition initial gene groups, extract exclusive k-mers for each gene group, and filter out sequences of no interest, such as tandems.
 
-Compile: A pipeline to construct k-mer matrices, phylogenetic trees, and pan-gene graphs, then compile them into database files used by Ctyper.
+Compile: A pipeline to construct k-mer matrices and phylogenetic trees then compile them into database files used by Ctyper.
 
 How to run this pipeline:
 
