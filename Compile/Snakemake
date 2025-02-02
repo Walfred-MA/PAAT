@@ -1,19 +1,23 @@
-import os
-#run: snakemake --cores 64 --keep-incomplete --wait-for-files --rerun-incomplete --latency-wait 100 --nt
 
-RefGenes = "/project/mchaisso_100/cmb-16/walfred/database/gencode.v38_37_29_fix.gff3"
-HG38 = "/project/mchaisso_100/cmb-16/walfred/database/hg38_full.fa"
-CHM13 = "/project/mchaisso_100/cmb-16/walfred/database/GCF_009914755.1_T2T-CHM13v2.0_genomic.fa"
-QueryPath = "../query_pathes.txt"
-hprcfitler = "../hprc_error.bed"
-hprccramfile = "../hprc_depth.txt"
-kmererrorlist = "/project/mchaisso_100/cmb-16/walfred/projects/scratchback/scrach1/kmercomp.txt_both.txt_all_count7"
-TempFolder = "temps/"
-SaveFolder = "Groups/"
-ScriptFolder = "/project/mchaisso_100/cmb-16/walfred/projects/CTGor/newrun/scripts/"
-nthreads = 32
-AnchorSize = 1000
-kmertype = 31
+import os
+import subprocess
+import json
+
+#example command on HPC cluster: snakemake -k --cluster "sbatch --account=mchaisso_100 --time 50:00:00 --partition=qcb --time=200:00:00 {resources.slurm_extra}  " --default-resources "mem_mb=3000"  --jobs 50 --rerun-incomplete  --nt --wait-for-files  --latency-wait 100 --resources  mem_gb=1000 --configfile example.json &
+
+with open("params.json", "r") as f:
+    params = json.load(f)
+
+
+slurm=params["slurm"]
+RefGenes = params["RefGenes"]
+HG38 = params["HG38"]
+CHM13 = params["CHM13"]
+QueryPath = params["QueryPath"]
+ScriptFolder = params["ScriptFolder"]
+Genelist = params["Genelist"]
+SaveFolder = params["SaveFolder"]
+
 
 
 queries = {"CHM13_h1": CHM13, "HG38_h1":HG38}
@@ -102,7 +106,7 @@ rule graph:
                 hg38 = HG38
         resources:
                 mem_mb=50000,
-                slurm_extra="--mem=50G -c 25 "
+                slurm_extra="--mem=64G -c 32 "
         threads: 25
         output:
                 graph = "{prefix}_annotate.fa_graph.FA",
@@ -130,7 +134,7 @@ rule kmerannotate:
                 kmerannotate = "{prefix}_annotate.fa_kmer.list",
         run:
                 shell (" touch {input.graphalign}_error || true ")
-                shell (" python {params.script}/kmerannotate.py -s {input.annotate} -k  {input.kmer} -a {input.graphalign} -g {input.graph} -o {output.kmerannotate} -e {params.kmererror} ")   
+                shell (" python {params.script}/kmerannotate.py -s {input.annotate} -k  {input.kmer} -a {input.graphalign} -g {input.graph} -o {output.kmerannotate} -e {params.kmererror} ") 
 
 
 
