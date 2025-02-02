@@ -7,6 +7,7 @@ Filtration: A pipeline to partition initial gene groups, extract exclusive k-mer
 
 Compile: A pipeline to construct k-mer matrices and phylogenetic trees then compile them into database files used by Ctyper.
 
+Annotation: A pipeline to annotate all pangenome-alleles to be used to interpret the results
 How to run this pipeline:
 
 1. First, you will need find the interested sequences from pangenome assemblies. This can be achived by the snakefile in AlleleSearch folder. You will need to provide the path of pangenome assemblies and the prefixes or names of genes or gene families you interested in. Then run the snakemake file and it will generate a list of a .fasta file for each of genes or gene families you interested in. 
