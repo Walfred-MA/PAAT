@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+
 import pandas as pd
 import os 
 import argparse
@@ -15,7 +16,7 @@ def withinvar(matrix, indexes):
 	avars = []
 	rvars = []
 	for index, i in enumerate(indexes):
-
+		
 		size1 = max(1.0 , matrix[i,i])
 		#row = dm[ i]
 		
@@ -26,30 +27,30 @@ def withinvar(matrix, indexes):
 			dist = 1 - match/math.sqrt((size1 * size2))
 			rvars.append(dist)
 			avars.append( max( size1 ,  size2 ) -  match )
-	
-	return rvars,avars	
+			
+	return rvars,avars
 
 def withoutvar(matrix, indexes1, indexes2):
 	
 	avars = []
 	rvars = []
 	for i in indexes1:
-
-		size1 = max(1.0 , matrix[i,i])		
-	
+		
+		size1 = max(1.0 , matrix[i,i])  
+		
 		#row = dm[i,...]
 		
 		for j in indexes2:
-		
+			
 			size2 = max(1.0, matrix[j,j])
 			match = matrix[i,j]
-	
+			
 			dist = 1 - match/math.sqrt((size1 * size2)) 
 			rvars.append(dist)
 			avars.append(  max( size1 ,  size2 ) -  match  )
 			
 	return rvars, avars
-	
+
 
 class node:
 	
@@ -59,9 +60,13 @@ class node:
 		
 		self.parent = parent
 		
+		self.genecount = ""
+		
 		self.name = name
 		
 		self.distance = distance
+		
+		self.mono = 1
 		
 		self.index = index
 		
@@ -79,7 +84,7 @@ class node:
 		
 		else:
 			return "("+",".join([str(x) for x in self.children])+")"+":"+str(self.distance)
-	
+		
 	def push(self, name = "", distance =0.0, index = 0):
 		
 		newchild = node(self,name,distance,index)
@@ -126,7 +131,7 @@ class node:
 					if len(current_node.children) == 0:
 						current_node.index = index
 						index += 1
-					
+						
 				else:
 					
 					allnames.append(current_node.name)
@@ -146,7 +151,7 @@ class node:
 					
 				else:
 					print(current_node.name)
-				
+					
 					
 			elif char == "," or char ==";":
 				
@@ -163,7 +168,7 @@ class node:
 					if len(current_node.children) == 0:
 						current_node.index = index
 						index += 1
-					
+						
 				else:
 					
 					allnames.append(current_node.name)
@@ -183,8 +188,26 @@ class node:
 				
 				current_node.name += char
 				
-		
+				
 		return self
+	
+	
+	def allancestors(self):
+		
+		offset = 0.0
+		ancestors=[]
+		ancestor = self
+		
+		while ancestor.parent is not None:
+			
+			ancestors.append(ancestor)
+			
+			ancestor = ancestor.parent
+			
+		ancestors.append(ancestor)
+		
+		return ancestors
+	
 	
 	def alloffsprings(self, offset = 0.0):
 		
@@ -197,7 +220,7 @@ class node:
 		return alloffsprings
 	
 	def allleaves(self):
-		return [x for x in self.alloffsprings() if len(x[1].children) == 0]	
+		return [x for x in self.alloffsprings() if len(x[1].children) == 0]
 	def magnitude(self, exclude = None):
 		
 		if exclude is None or exclude is self:
@@ -212,61 +235,83 @@ class node:
 			
 			
 		return max(alloffsprings+[0.0])
-
-
-	def findclades(self, dm , cutoff = 0.005, rcutoff = 1.5, acutoff = 200):
+	
+	
+	def findclades(self, dm , rcutoff = 0.000, fcutoff = 2, mcutoff = 31*5, rcutoff2 = 0.005 * 3, mcutoff2 = 31*5 * 3):
 		
 		if len(self.children) == 0:
 			return []
 		
-		clades = sum([child.findclades(dm, cutoff, rcutoff) for child in self.children], [])
-
+		clades = sum([child.findclades(dm, rcutoff, fcutoff) for child in self.children], [])
+		
 		lnames = [x[1].name for x in self.children[0].allleaves()]
 		rnames = [x[1].name for x in self.children[1].allleaves()]
 		
 		lhaplo = set([tuple(name.split("_")[-3:-1]) for name in lnames])
 		rhaplo = set([tuple(name.split("_")[-3:-1]) for name in rnames])
-
-		if lhaplo.intersection(rhaplo):
-			rcutoff = 1.5
-	
+		
+		
 		lindexes = [x[1].index for x in self.children[0].allleaves()]
 		rindexes = [x[1].index for x in self.children[1].allleaves()]
-				
-
+		
+		
 		lsize = sum([dm[i,i] for i in lindexes])/max(1,len(lindexes))
 		rsize = sum([dm[i,i] for i in rindexes])/max(1,len(rindexes))
-
-	
-		without,awithout = withoutvar(dm, lindexes, rindexes)
-
+		
+		
+		without_rel,without_abs = withoutvar(dm, lindexes, rindexes)
+		
 		if len(lindexes) * len(rindexes)  < 10 or min( len(lindexes),  len(rindexes)) < 3:
-
-
-			if len([x for x,y in zip(without,awithout) if x < 3*cutoff or y < 3*acutoff]) == 0:
-
+			
+			
+			if len([x for x,y in zip(without_rel,without_abs) if x < rcutoff2 or y < mcutoff2 ]) == 0:
+				
 				clades += self.children
 				
 			return clades
-
-		lwithin,awithin = withinvar(dm, lindexes)
-		rwithin,awithin = withinvar(dm, rindexes)
-
 		
-		within_mean = ( sum(lwithin) + sum(rwithin) ) / max(len(lwithin) + len(rwithin), 1)
-		without_mean = sum(without) / len(without)
-
-		if ( min(awithout) >= acutoff  and  without_mean > rcutoff * within_mean ) :
+		lwithin_rel,within_abs = withinvar(dm, lindexes)
+		rwithin_rel,within_abs = withinvar(dm, rindexes)
+		
+		
+		within_mean = ( sum(lwithin_rel) + sum(rwithin_rel) ) / max(len(lwithin_rel) + len(rwithin_rel), 1)
+		without_mean = sum(without_rel) / len(without_rel)
+		
+		
+		if ( min(without_abs) > mcutoff  and  without_mean > rcutoff  ) and without_mean > within_mean * fcutoff:
 			clades += self.children 
-		
-		return clades
-		
 			
+		return clades
 	
-
+	def splitbygenecount(self):
 		
-	
+		if len(self.children) == 0:
+			return []
+		
+		clades = sum([child.splitbygenecount() for child in self.children], [])
+		
+		lindexes = [x[1].index for x in self.children[0].allleaves()]
+		rindexes = [x[1].index for x in self.children[1].allleaves()]
+		
+		lcounts = set([x[1].genecount for x in self.children[0].allleaves()])
+		rcounts = set([x[1].genecount for x in self.children[1].allleaves()])
+		
+		common = set.intersection(lcounts, rcounts)
+		
+		if len(lcounts) == 1 and len(common) == 0:
+			
+			clades.append(self.children[0])
+			
+		if len(rcounts) == 1 and len(common) == 0:
+			
+			clades.append(self.children[1])
 
+		if len(common) == 1:
+			return [self]
+			
+		return clades
+	
+	
 def distance_search(root, refs, samples,phyly_groups):
 	
 	if len(phyly_groups) == 0:
@@ -343,6 +388,28 @@ def normtotdm(matrix):
 	return dm
 
 
+def getgenecounts(genecountfile):
+	
+	nametoproteincoding = cl.defaultdict(list)
+	with open(genecountfile, mode = 'r') as f:
+		
+		for line in f:
+			
+			if len(line.strip()):
+				
+				line = line.split('\t')
+				
+				if  float(line[6]) > 90.0 and line[4] == "protein_coding":
+					
+					nametoproteincoding[line[0]].append(line[3].split('-')[0]) 
+					
+	nametoproteincoding = {name:";".join(sorted(genes)) for name,genes in nametoproteincoding.items()}
+	
+	
+	return nametoproteincoding
+
+
+
 def main(args):
 	
 	
@@ -351,18 +418,18 @@ def main(args):
 	
 	normfile = args.input + "_norm.txt"
 	treefile = args.input + "_tree.ph"
-
+	
 	
 	excludenames = set()
 	if len(args.exclude):
 		with open(args.exclude, mode = 'r') as f:
 			excludenames = set([x.strip() for x in f.read().splitlines()])
-
-
+			
+			
 	normmatrix = np.genfromtxt(normfile, delimiter=',')
-
+	
 	#distmatrix= np.array(normtotdm(normmatrix))
-
+	
 	headers = dict()
 	with open(args.input, mode = 'r') as f:
 		for line in f:
@@ -371,64 +438,106 @@ def main(args):
 			lines = line.strip().split()
 			headers[lines[0][1:]] = lines[1]
 			
-	
-	
-
 	with open(treefile, mode = 'r') as f:
 		
 		tree_text = f.read()
-	
+		
 	tree = node().build(tree_text)
 	
-	allclades = tree.findclades(normmatrix)
-
-
+	allclades = tree.findclades(normmatrix, args.rcutoff, args.fcutoff, args.mcutoff, args.rcutoff2, args.mcutoff2)
+	
+	nametoproteincoding = cl.defaultdict(str)
+	if len(args.genecount):
+		
+		nametoproteincoding = getgenecounts(args.genecount)
+		
+	for clade in allclades:
+		allancestors = clade.allancestors()
+		
+		for ancestor in allancestors[1:]:
+			ancestor.mono = 0
+			
+	step1_groups = {0:0}	
+	offsite = 0
 	for i, clade in enumerate(allclades[::-1]):
 		
 		allleaves = clade.allleaves()
 		
 		for (dist, leave) in allleaves:
-							
-			leave.annotation = i + 1
-	 
-	
+			
+			leave.annotation = i + offsite
+			
+			if len(args.genecount):
+				leave.genecount = nametoproteincoding.get(leave.name,"")
+		
+		step1_groups[i + offsite ] = i
+		
+		if len(args.genecount) and clade.mono:
+			
+			newclades = clade.splitbygenecount()
+			
+			for j, newclade in enumerate(newclades[::-1]):
+				
+				allleaves = newclade.allleaves()
+				
+				for (dist, leave) in allleaves:
+					
+					leave.annotation = i + offsite + j + 1
+
+				step1_groups[i + offsite + j + 1] = i			
+		
+			offsite += len(newclades) 
+			
+	nametoindex = {x[1].name:x[1].index for x in tree.allleaves()}		
+			
 	allnames = [x[1].name for x in tree.allleaves()]
 	allgroups = [x[1].annotation for x in tree.allleaves()]
 	
-	newgroups = []
-	uniq_group = set([])
-	for group in allgroups:
-		
-		uniq_group.add(group)
-		newgroups.append(len(uniq_group))
-	
-	namegroup = {name: group for name, group in zip (allnames, newgroups) }
-	
-	groups = [[] for x in range(max(namegroup.values()) + 1)]
-	
-	for name in allnames:
+	groups = [[] for x in range(max(allgroups) + 1)]
 
-		groups[namegroup[name]].append(name)
+	lastgroup = -1
+	groupindex = -1
+	for name, group in zip(allnames,allgroups):
+		
+		if group != lastgroup:
+			groupindex +=1
+		lastgroup = group
+
+		groups[groupindex].append(name)
 	
+	laststep1_groups = -1
+	step1_index = -1	
+	lindex = 0
 	with open(outputfile, mode = 'w') as f:
 		
-		for group in groups:
+		for i,group in enumerate(groups):
 			
-			f.write( ",".join([x for x in group if headers[x].split(":")[0] not in excludenames]) +"\n" )
+			if len(group):
+			
+				if step1_groups[i] != laststep1_groups:
+					step1_index += 1
+				laststep1_groups = step1_groups[i]
 	
-	
+				f.write(str(lindex)+"\t"+str( step1_index )+"\t"+ ",".join([x for x in group if headers[x].split(":")[0] not in excludenames]) +"\n" )
+				lindex += 1	
+				
+				
 	return 0
 
 def run():
 	"""
 		Parse arguments and run
 	"""
-	parser = argparse.ArgumentParser(description="program determine psuedogene")
-	parser.add_argument("-i", "--input", help="path to input data file",
-						dest="input", type=str, required=True)
-	parser.add_argument("-o", "--output", help="path to output file", dest="output",
-						type=str, required=True)
+	parser = argparse.ArgumentParser(description="program determine pangenome-allele types")
+	parser.add_argument("-i", "--input", help="path to input data file",dest="input", type=str, required=True)
+	parser.add_argument("-o", "--output", help="path to output file", dest="output",type=str, required=True)
 	parser.add_argument("-e", "--error", help="path to output file", dest="exclude", type=str, default= "" )
+	parser.add_argument("-g", "--genecount", help="path to output file", dest="genecount", type=str, default= "" )
+	parser.add_argument("-r", "--rcutoff", help="path to output file", dest="rcutoff", type=float, default= 0.00 )
+	parser.add_argument("-f", "--fcutoff", help="path to output file", dest="fcutoff", type=float, default= 2 )
+	parser.add_argument("-m", "--mcutoff", help="path to output file", dest="mcutoff", type=float, default= 155 )
+	parser.add_argument("-r2", "--rcutoff2", help="path to output file", dest="rcutoff2", type=float, default= 0.005 * 3 )
+	parser.add_argument("-m2", "--mcutoff2", help="path to output file", dest="mcutoff2", type=float, default= 155 * 3 )
 	parser.set_defaults(func=main)
 	args = parser.parse_args()
 	args.func(args)
