@@ -71,12 +71,12 @@ rule all:
                 exonfound = [ancient(prefix+"_annotate.fa_exons.tsv") for prefix in allprefixes  ],
 
 
-                #typefile = [ancient(prefix+"_annotate.fa_types.txt") for prefix in allprefixes],
-                #typeannotates = [ancient(prefix+"_annotate.fa_typeannotate.txt") for prefix in allprefixes  ],
+                typefile = [ancient(prefix+"_annotate.fa_types.txt") for prefix in allprefixes],
+                typeannotates = [ancient(prefix+"_annotate.fa_typeannotate.txt") for prefix in allprefixes  ],
 
                 summaries = [ancient(prefix+"_annotate.fa_annotatesummary.txt") for prefix in allprefixes  ],
-                #summariesfix = [ancient(prefix+"_annotate.fa_annotatefix.txt") for prefix in allprefixes  ],
-                #summariesfixed = [ancient(prefix+"_annotate.fa_annotatesummaryfix.txt") for prefix in allprefixes  ],
+                summariesfix = [ancient(prefix+"_annotate.fa_annotatefix.txt") for prefix in allprefixes  ],
+                summariesfixed = [ancient(prefix+"_annotate.fa_annotatesummaryfix.txt") for prefix in allprefixes  ],
 
 #Inital annotate
 
